@@ -396,6 +396,9 @@ class Server:
                 "reboot",
             }:
                 raise ProtocolError("unknown_command", "Command is not allowed")
+            skip_cleanup = frame.get("skip_cleanup", False)
+            if command in {"disconnect", "release"} and type(skip_cleanup) is not bool:
+                raise ProtocolError("invalid_frame", "skip_cleanup must be a boolean")
             owner.heartbeat = time.monotonic()
             if command == "connect":
                 async with self.lifecycle:
@@ -419,7 +422,7 @@ class Server:
                     await asyncio.gather(self.recovery_task, return_exceptions=True)
                 await self.stop_work("stopped")
             elif command == "disconnect":
-                await self.cleanup()
+                await self.cleanup(menu=not skip_cleanup)
             elif command == "release":
                 if self.maintenance:
                     raise ProtocolError(
@@ -441,7 +444,7 @@ class Server:
                             raise ProtocolError(
                                 "hardware_error", "USB controller did not detach"
                             )
-                    await self.cleanup()
+                    await self.cleanup(menu=not skip_cleanup)
                     cleaned = True
                 result = {
                     **self.status(),
@@ -735,16 +738,20 @@ class Server:
             )
             await asyncio.shield(self.begin_recovery())
 
-    async def cleanup(self):
-        """Wait for owner-retaining cleanup, joining one already running."""
-        recovery = self.begin_recovery(release_owner=False)
+    async def cleanup(self, *, menu=True):
+        """Wait for owner-retaining cleanup, joining one already running.
+
+        ``menu=False`` neutralizes and unbinds without the menu macro, for a
+        host that has just verified the Switch is already on Change Grip/Order.
+        """
+        recovery = self.begin_recovery(release_owner=False, menu=menu)
         try:
             await asyncio.shield(recovery)
         except asyncio.CancelledError:
             if not recovery.cancelled():
                 raise
 
-    def begin_recovery(self, *, release_owner=True):
+    def begin_recovery(self, *, release_owner=True, menu=True):
         """Run the shared cleanup macro and detach.
 
         Explicit disconnect only idles USB and keeps the authenticated network
@@ -754,10 +761,12 @@ class Server:
             self.recovering = True
             LOGGER.info("USB menu recovery started")
             self.ready.clear()
-            self.recovery_task = self.spawn(self.recover(self.owner, release_owner))
+            self.recovery_task = self.spawn(
+                self.recover(self.owner, release_owner, menu)
+            )
         return self.recovery_task
 
-    async def recover(self, owner, release_owner=True):
+    async def recover(self, owner, release_owner=True, menu=True):
         complete = False
         try:
             budget = self.config.recovery_timeout - min(
@@ -766,7 +775,7 @@ class Server:
             async with asyncio.timeout(budget):
                 async with self.lifecycle:
                     await self.stop_work("interrupted")
-                    if self.backend.status()["spoofing"]:
+                    if menu and self.backend.status()["spoofing"]:
                         for text in RECOVERY_STEPS:
                             await self.perform(parse_step(text))
                 complete = True

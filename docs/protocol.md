@@ -100,6 +100,15 @@ string.
 | `connect` | Bind USB and send a neutral report. Fails with `usb_unavailable` if the host does not enumerate; the session stays usable |
 | `disconnect` | Run the cleanup sequence and unbind USB; the session and both channels stay owned |
 | `release` | Intentionally end the session; see [release](#release) |
+
+`disconnect` and `release` accept an optional boolean `skip_cleanup`. When it
+is `true`, cynx still fails the active step with `interrupted`, clears the
+queue, sends neutral and unbinds USB, but skips the menu cleanup sequence. Send
+it only when the host has just confirmed that the Switch already shows Change
+Grip/Order. Absent or `false` keeps the normal cleanup. Any non-boolean value,
+including `"true"` or `1`, fails with `invalid_frame` and changes nothing. The
+flag does not affect a cleanup that is already running, and network-loss
+recovery always runs the full sequence.
 | `stop` | Immediately cancel the active step, clear the queue and send neutral; USB stays bound |
 | `restart` | Release and unbind, acknowledge, then restart `cynx.service` |
 | `reboot` | Release and unbind, acknowledge, then reboot the Pi |

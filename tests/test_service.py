@@ -1105,3 +1105,63 @@ def test_release_keeps_lease_when_usb_fails_to_detach():
             assert (await command.call("status"))["ok"]
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("command_name", ["disconnect", "release"])
+def test_skip_cleanup_interrupts_neutralizes_and_unbinds_without_menu(command_name):
+    async def run():
+        async with running(reconnect_grace=0.05) as (server, backend):
+            command, macro = await owned(server)
+            assert (await command.call("connect"))["ok"]
+            assert (await macro.step(1, "(0,0) A"))["event"] == "accepted"
+            assert (await macro.receive())["event"] == "completed"
+            assert (await macro.step(2, "(5,0) B"))["event"] == "accepted"
+            await eventually(lambda: server.active is not None)
+            performed = []
+
+            async def record(step):
+                performed.append(step)
+
+            server.perform = record
+            mark = len(backend.events)
+            reply = await command.call(command_name, skip_cleanup=True)
+            assert reply["ok"]
+            failed = await macro.receive()
+            assert failed["id"] == 2 and failed["code"] == "interrupted"
+            assert performed == []
+            assert backend.events[mark:][-2:] == [NEUTRAL, "detach"]
+            assert not backend.bound
+            result = reply["result"]
+            assert result["last_completed_id"] == 1
+            if command_name == "release":
+                assert result["released"] and result["recovery_complete"]
+                assert server.owner is None
+            else:
+                assert result["session"] == command.session
+                assert result["connection_state"] == "connected"
+                assert (await command.call("connect"))["ok"]
+            assert server.errors.snapshot() == []
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("value", ["true", 1, None, [True]])
+def test_skip_cleanup_rejects_non_boolean_and_false_keeps_menu(value):
+    async def run():
+        async with running() as (server, backend):
+            command, macro = await owned(server)
+            assert (await command.call("connect"))["ok"]
+            performed = []
+
+            async def record(step):
+                performed.append(step)
+
+            server.perform = record
+            for name in ("disconnect", "release"):
+                reply = await command.call(name, skip_cleanup=value)
+                assert reply["code"] == "invalid_frame"
+            assert backend.bound and server.owner is not None and performed == []
+            assert (await command.call("disconnect", skip_cleanup=False))["ok"]
+            assert len(performed) == len(RECOVERY_STEPS) and not backend.bound
+
+    asyncio.run(run())

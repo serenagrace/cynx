@@ -61,7 +61,8 @@ When either channel closes or the command heartbeat stops:
    unbound. Ownership is then released and the session becomes
    [`session_expired`](protocol.md#expired-sessions).
 
-Explicit `disconnect` uses the identical cleanup and unbind but keeps the
+Explicit `disconnect` uses the identical cleanup and unbind (unless the owner
+sends [`skip_cleanup`](protocol.md#commands)) but keeps the
 session, both channels and the ledger; only grace expiry, `release` and
 service shutdown release the owner. Neither is a transactional rollback of game state.
 
