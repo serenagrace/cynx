@@ -441,7 +441,9 @@ def test_grace_timeout_cancels_active_releases_recovers_and_tombstones():
             _, busy = await server.login()
             assert busy["code"] == "busy"
             await eventually(lambda: server.recovering)
-            assert not record.done.result()["ok"]
+            # Recovery interrupts the active step inside its own task.
+            result = await asyncio.wait_for(asyncio.shield(record.done), 1)
+            assert result["code"] == "interrupted"
             _, busy = await server.login()
             assert busy["code"] == "busy"
             await eventually(lambda: server.owner is None)
@@ -586,7 +588,8 @@ def test_unicode_auth_and_malformed_commands_are_bounded_errors():
     asyncio.run(run())
 
 
-def test_heartbeat_does_not_self_expire_during_slow_connect():
+@pytest.mark.parametrize("fails", [False, True])
+def test_heartbeat_does_not_self_expire_during_slow_connect(fails):
     async def run():
         async with running(heartbeat_timeout=0.08) as (server, backend):
             command, macro = await owned(server)
@@ -594,11 +597,17 @@ def test_heartbeat_does_not_self_expire_during_slow_connect():
 
             async def slow():
                 await asyncio.sleep(0.15)
+                if fails:
+                    raise TimeoutError("USB host is not accepting reports")
                 await original()
 
             backend.connect = slow
-            assert (await command.call("connect"))["ok"]
-            assert server.owner is not None
+            response = await command.call("connect")
+            assert response["ok"] is not fails
+            # The client's next heartbeat follows the reply; the slow bind
+            # itself must not count against liveness.
+            await asyncio.sleep(0.06)
+            assert server.owner is not None and server.channels_ready()
             assert (await command.call("status"))["ok"]
 
     asyncio.run(run())

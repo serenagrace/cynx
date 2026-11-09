@@ -393,7 +393,13 @@ class Server:
                         raise ProtocolError(
                             "recovering", "Lifecycle transition in progress"
                         )
-                    await self.backend.connect()
+                    try:
+                        await self.backend.connect()
+                    finally:
+                        # Bind time (up to the enumeration bound) must not
+                        # count against the client's serialized heartbeat.
+                        if owner is self.owner:
+                            owner.heartbeat = time.monotonic()
                     LOGGER.info("USB controller connected")
             elif command == "stop":
                 if self.recovery_task and not self.recovery_task.done():
