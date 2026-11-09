@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cynx"
+version = "0.0.0"
+description = "Wired Nintendo Switch controller automation for Cynthia"
+readme = "README.md"
+authors = [{name = "serenagrace"}]
+requires-python = ">=3.13"
+classifiers = [
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["black", "isort", "pytest"]
+
+[project.urls]
+Homepage = "https://github.com/serenagrace/cynx"
+Issues = "https://github.com/serenagrace/cynx/issues"
+
+[project.scripts]
+cynx = "cynx.__main__:main"
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.packages.find]
+include = ["cynx*"]
+
+[tool.black]
+target-version = ["py313"]
+extend-exclude = '/(env|\.venv|build|dist)/'
+
+[tool.isort]
+profile = "black"
+py_version = 313
+skip_gitignore = true
+skip = ["env", ".venv", "build", "dist"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
