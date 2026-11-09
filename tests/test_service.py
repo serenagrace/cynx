@@ -979,3 +979,129 @@ def test_denied_system_action_is_rejected_before_ack(command):
             assert (await client.call("status"))["ok"]
 
     asyncio.run(run())
+
+
+def test_release_cleans_live_usb_acks_then_frees_owner_without_grace_error():
+    async def run():
+        async with running(reconnect_grace=0.05) as (server, backend):
+            command, macro = await owned(server)
+            assert (await command.call("connect"))["ok"]
+            assert (await macro.step(1, "(0,0) A"))["event"] == "accepted"
+            assert (await macro.receive())["event"] == "completed"
+            performed = []
+
+            async def instant(step):
+                performed.append(step)
+                await server.backend.send(step.report)
+                await server.backend.release()
+
+            server.perform = instant
+            reply = await command.call("release")
+            assert reply["ok"]
+            result = reply["result"]
+            assert result["released"] and result["released_session"] == command.session
+            assert result["session"] is None
+            assert result["connection_state"] == "idle"
+            assert result["last_completed_id"] == 1
+            assert result["recovery_complete"] and not result["spoofing"]
+            assert len(performed) == len(RECOVERY_STEPS)
+            assert backend.events[-1] == "detach" and not backend.bound
+            # The acknowledgement arrived first; then the server closes both channels.
+            for client in (command, macro):
+                with pytest.raises((EOFError, ConnectionError)):
+                    await client.receive(timeout=1)
+            await asyncio.sleep(0.2)
+            assert server.owner is None and not server.recovering
+            assert server.errors.snapshot() == []
+            _, expired = await server.login(session=command.session)
+            assert expired["code"] == "session_expired"
+            assert expired["result"] == {
+                "last_completed_id": 1,
+                "recovery_complete": True,
+            }
+            other, response = await server.login(ip="127.0.0.2")
+            assert response["ok"]
+            assert response["result"]["errors"] == []
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("during", [False, True])
+def test_release_after_or_during_disconnect_runs_cleanup_once(during):
+    async def run():
+        async with running(reconnect_grace=0.05) as (server, backend):
+            command, macro = await owned(server)
+            assert (await command.call("connect"))["ok"]
+            performed = []
+
+            async def slow(step):
+                performed.append(step)
+                await server.backend.send(step.report)
+                await asyncio.sleep(0.01)
+                await server.backend.release()
+
+            server.perform = slow
+            await command.send({"id": 90, "command": "disconnect"})
+            if during:
+                await eventually(lambda: server.recovering)
+            else:
+                assert (await command.receive())["ok"]
+            # Release joins a running cleanup; it never cancels or repeats it.
+            await command.send({"id": 91, "command": "release"})
+            replies = {}
+            for _ in range(2 if during else 1):
+                frame = await command.receive()
+                replies[frame["id"]] = frame
+            assert replies.get(90, {"ok": True})["ok"]
+            reply = replies[91]
+            assert reply["ok"]
+            assert reply["result"]["released"]
+            assert reply["result"]["recovery_complete"]
+            assert len(performed) == len(RECOVERY_STEPS)
+            events = backend.events[backend.events.index("connect") :]
+            assert events.count("detach") == 1 and not backend.bound
+            await asyncio.sleep(0.2)
+            assert server.owner is None and server.errors.snapshot() == []
+
+    asyncio.run(run())
+
+
+def test_release_waits_for_inflight_connect_and_never_leaves_usb_bound():
+    async def run():
+        async with running() as (server, backend):
+            command, macro = await owned(server)
+            original = backend.connect
+
+            async def slow_connect():
+                await asyncio.sleep(0.1)
+                await original()
+
+            backend.connect = slow_connect
+            server.perform = lambda step: asyncio.sleep(0)
+            await command.send({"id": 1, "command": "connect"})
+            await command.send({"id": 2, "command": "release"})
+            assert (await command.receive())["id"] == 1
+            reply = await command.receive()
+            assert reply["id"] == 2 and reply["ok"]
+            assert not backend.bound and server.owner is None
+
+    asyncio.run(run())
+
+
+def test_release_keeps_lease_when_usb_fails_to_detach():
+    async def run():
+        async with running() as (server, backend):
+            command, macro = await owned(server)
+            assert (await command.call("connect"))["ok"]
+            server.perform = lambda step: asyncio.sleep(0)
+
+            async def stuck():
+                raise OSError("unbind failed")
+
+            backend.detach = stuck
+            reply = await command.call("release")
+            assert reply["code"] == "hardware_error"
+            assert server.owner is not None and backend.bound
+            assert (await command.call("status"))["ok"]
+
+    asyncio.run(run())

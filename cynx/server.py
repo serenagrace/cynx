@@ -41,7 +41,7 @@ class Session:
     records: OrderedDict = field(default_factory=OrderedDict)
     highest: int = 0
     last_completed: int = 0
-    recovery_complete: bool = False
+    recovery_complete: bool = True
 
 
 class Discovery(asyncio.DatagramProtocol):
@@ -339,6 +339,7 @@ class Server:
         owner = None
         pending = set()
         frame = {}
+        released = False
         try:
             frame = await asyncio.wait_for(read_frame(reader), 10)
             owner = await self.hello(frame, writer)
@@ -349,12 +350,20 @@ class Server:
                 task = self.spawn(self.command(frame, writer, owner))
                 pending.add(task)
                 task.add_done_callback(pending.discard)
+                if frame.get("command") == "release":
+                    # A released channel accepts nothing further.
+                    released = await asyncio.shield(task) is True
+                    if released:
+                        break
         except (EOFError, ConnectionError, asyncio.TimeoutError):
             pass
         except ProtocolError as error:
             with contextlib.suppress(ConnectionError, asyncio.TimeoutError):
                 await send_frame(writer, self.failure(frame.get("id", 0), error))
         finally:
+            if released and pending:
+                # Let replies already in flight (e.g. a joined disconnect) land.
+                await asyncio.wait(pending, timeout=1)
             for task in pending:
                 task.cancel()
             if pending:
@@ -381,6 +390,7 @@ class Server:
                 "status",
                 "connect",
                 "disconnect",
+                "release",
                 "stop",
                 "restart",
                 "reboot",
@@ -389,6 +399,8 @@ class Server:
             owner.heartbeat = time.monotonic()
             if command == "connect":
                 async with self.lifecycle:
+                    if owner is not self.owner:
+                        raise self.lease_error(owner)
                     if self.recovering or self.maintenance:
                         raise ProtocolError(
                             "recovering", "Lifecycle transition in progress"
@@ -407,12 +419,37 @@ class Server:
                     await asyncio.gather(self.recovery_task, return_exceptions=True)
                 await self.stop_work("stopped")
             elif command == "disconnect":
-                recovery = self.begin_recovery(release_owner=False)
-                try:
-                    await asyncio.shield(recovery)
-                except asyncio.CancelledError:
-                    if not recovery.cancelled():
-                        raise
+                await self.cleanup()
+            elif command == "release":
+                if self.maintenance:
+                    raise ProtocolError(
+                        "unavailable", "System action already requested"
+                    )
+                cleaned = False
+                while True:
+                    async with self.lifecycle:
+                        if owner is not self.owner:
+                            raise self.lease_error(owner)
+                        cleaning = bool(
+                            self.recovery_task and not self.recovery_task.done()
+                        )
+                        if not self.backend.status()["spoofing"] and not cleaning:
+                            self.retire(owner)
+                            break
+                        if cleaned and not cleaning:
+                            # Keep the lease so loss recovery can retry detach.
+                            raise ProtocolError(
+                                "hardware_error", "USB controller did not detach"
+                            )
+                    await self.cleanup()
+                    cleaned = True
+                result = {
+                    **self.status(),
+                    "released": True,
+                    "released_session": owner.token,
+                    "last_completed_id": owner.last_completed,
+                    "recovery_complete": owner.recovery_complete,
+                }
             elif command in {"restart", "reboot"}:
                 if self.maintenance:
                     raise ProtocolError(
@@ -423,9 +460,16 @@ class Server:
                 await self.backend.detach()
                 if self.authorize is not None:
                     await self.authorize(command)
-            result = self.status()
+            if command != "release":
+                result = self.status()
             executing = False
             await send_frame(writer, {"id": frame["id"], "ok": True, "result": result})
+            if command == "release":
+                # Ownership is already gone, so closing starts no reconnect
+                # grace; the command channel closes in its reader loop.
+                if owner.macro:
+                    owner.macro.close()
+                return True
             if command in {"restart", "reboot"}:
                 # systemd stops this process almost immediately, so the
                 # acknowledgement must be on the wire before dispatch.
@@ -691,6 +735,15 @@ class Server:
             )
             await asyncio.shield(self.begin_recovery())
 
+    async def cleanup(self):
+        """Wait for owner-retaining cleanup, joining one already running."""
+        recovery = self.begin_recovery(release_owner=False)
+        try:
+            await asyncio.shield(recovery)
+        except asyncio.CancelledError:
+            if not recovery.cancelled():
+                raise
+
     def begin_recovery(self, *, release_owner=True):
         """Run the shared cleanup macro and detach.
 
@@ -726,19 +779,12 @@ class Server:
                 self.errors.report("USB detach failed after recovery", error)
             finally:
                 retained = owner is self.owner and owner and not release_owner
-                if owner is self.owner and owner and release_owner:
+                if owner is self.owner and owner:
                     owner.recovery_complete = complete
-                    self.tombstones[owner.token] = {
-                        "ip": owner.ip,
-                        "last_completed_id": owner.last_completed,
-                        "recovery_complete": complete,
-                        "expires": time.monotonic() + 60,
-                    }
-                    while len(self.tombstones) > 16:
-                        self.tombstones.popitem(last=False)
-                    if owner.macro:
-                        owner.macro.close()
-                    self.owner = None
+                    if release_owner:
+                        if owner.macro:
+                            owner.macro.close()
+                        self.retire(owner)
                 self.recovering = False
                 LOGGER.info("USB recovery ended; controller detached")
                 if self.grace_task:
@@ -748,6 +794,21 @@ class Server:
                     # Cleanup time must not count against the client heartbeat.
                     owner.heartbeat = time.monotonic()
                     self.refresh_channels()
+
+    def retire(self, owner):
+        """End the lease, keeping a short tombstone of its completion state."""
+        self.tombstones[owner.token] = {
+            "ip": owner.ip,
+            "last_completed_id": owner.last_completed,
+            "recovery_complete": owner.recovery_complete,
+            "expires": time.monotonic() + 60,
+        }
+        while len(self.tombstones) > 16:
+            self.tombstones.popitem(last=False)
+        self.owner = None
+        if self.grace_task:
+            self.grace_task.cancel()
+            self.grace_task = None
 
     async def heartbeat(self):
         while True:

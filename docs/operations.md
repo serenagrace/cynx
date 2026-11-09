@@ -11,6 +11,9 @@ order:
 4. Send `status` about once a second as a heartbeat.
 5. Send `disconnect` to run the cleanup sequence and unbind USB. The session
    stays owned, so the same client can `connect` again later.
+6. When shutting down for good, send `release` instead of just closing the
+   sockets. It runs any cleanup still needed, ends the session and closes both
+   channels without a reconnect grace period or error.
 
 `status` and `stop` use the command channel, so they stay responsive during
 long holds.
@@ -59,8 +62,8 @@ When either channel closes or the command heartbeat stops:
    [`session_expired`](protocol.md#expired-sessions).
 
 Explicit `disconnect` uses the identical cleanup and unbind but keeps the
-session, both channels and the ledger; only grace expiry and service shutdown
-release the owner. Neither is a transactional rollback of game state.
+session, both channels and the ledger; only grace expiry, `release` and
+service shutdown release the owner. Neither is a transactional rollback of game state.
 
 ## Restart and reboot
 

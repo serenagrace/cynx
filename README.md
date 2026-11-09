@@ -20,8 +20,8 @@ request, and safely detaches when the client goes away.
   and discovery on port 3140, controller steps on port 3141.
 - Runs single serialized Cynthia input steps such as `A`, `L R`, `hold C` or
   `(0.1,0.2) H`, with prompt `accepted` and timed `completed` events.
-- Answers `status`, `stop`, `disconnect`, `restart` and `reboot` from a fixed
-  allowlist; it never runs shell commands from the network.
+- Answers `status`, `stop`, `disconnect`, `release`, `restart` and `reboot`
+  from a fixed allowlist; it never runs shell commands from the network.
 - On network loss, waits a short reconnect grace period, then runs the same
   HOME-menu cleanup as Cynthia's Bluetooth backend and unbinds USB.
 - Logs locally and reports recent errors in `status` so Cynthia can alert its

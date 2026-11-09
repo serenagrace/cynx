@@ -99,6 +99,7 @@ string.
 | `status` | Return [status](#status); the usual heartbeat |
 | `connect` | Bind USB and send a neutral report. Fails with `usb_unavailable` if the host does not enumerate; the session stays usable |
 | `disconnect` | Run the cleanup sequence and unbind USB; the session and both channels stay owned |
+| `release` | Intentionally end the session; see [release](#release) |
 | `stop` | Immediately cancel the active step, clear the queue and send neutral; USB stays bound |
 | `restart` | Release and unbind, acknowledge, then restart `cynx.service` |
 | `reboot` | Release and unbind, acknowledge, then reboot the Pi |
@@ -108,6 +109,25 @@ permits the fixed `systemctl` command. A denied check returns `ok: false` and
 the service keeps running. Otherwise the success reply is written to the
 socket before the action runs, and the connection closes shortly afterwards.
 A failure after that point is recorded in `status.errors`.
+
+### Release
+
+`release` is the clean way for an owner to shut down. If USB is bound, it
+runs the same cleanup and unbind as `disconnect`; if a cleanup is already
+running, it waits for that one instead of cancelling or repeating it. It then
+ends the session and replies with [status](#status) plus:
+
+```json
+{"released": true, "released_session": "...", "last_completed_id": 12, "recovery_complete": true}
+```
+
+In that reply `session` is `null` and `connection_state` is `idle`. Replies to
+other commands already in flight are sent, then the server closes both
+channels. No reconnect grace or error is recorded, and any host may `hello`
+immediately. Resuming the released session returns `session_expired` with the
+same completion details. If USB fails to unbind, `release` fails with
+`hardware_error` and the session stays owned, so normal loss recovery can
+retry.
 
 ## Macro channel
 
