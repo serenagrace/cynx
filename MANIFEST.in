@@ -1,0 +1,5 @@
+include .env.example config.example.yaml
+recursive-include bin *.py *.sh
+recursive-include docs *.md
+recursive-include systemd *.in
+recursive-include tests *.py

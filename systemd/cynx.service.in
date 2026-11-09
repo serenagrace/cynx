@@ -1,0 +1,23 @@
+[Unit]
+Description=Cynx exclusive LAN Switch controller
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=@USER@
+Group=@GROUP@
+WorkingDirectory=@PROJECT@
+ExecStartPre=+/usr/local/libexec/cynx/service_usb.sh prepare @USER@
+ExecStart=@PROJECT@/env/bin/cynx --config config.yaml
+ExecStopPost=+/usr/local/libexec/cynx/service_usb.sh unbind
+Restart=always
+RestartSec=2
+TimeoutStopSec=12
+UMask=0077
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

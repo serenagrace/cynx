@@ -1,0 +1,14 @@
+# Copy to config.yaml (gitignored). Values shown are the defaults.
+# TCP command channel and UDP discovery share command_port.
+listen_host: 0.0.0.0
+command_port: 3140
+macro_port: 3141
+# Per-step limits in seconds.
+max_hold: 30
+max_wait: 300
+# Network liveness and bounded USB recovery, in seconds (recovery <= 10).
+reconnect_grace: 5
+heartbeat_timeout: 3
+recovery_timeout: 10
+# Private HID node created by the service's root preparation hook.
+device: /dev/cynx/hidg0

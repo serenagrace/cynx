@@ -11,3 +11,5 @@ dist/
 !.env.example
 tags
 tags.*
+logs/
+config.yaml
