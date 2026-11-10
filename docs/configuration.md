@@ -26,13 +26,13 @@ Restart the service after changing configuration:
 `.env` in the working directory may set:
 
 ```dotenv
-CYPI_PASSPHRASE=
+CYNX_PASSPHRASE=
 ```
 
 An empty or missing value disables authentication. When it is set, Cynthia
 must send the same value in `hello` and `attach`. The value is compared in
 constant time, is never logged or echoed in errors, and is redacted from error
-summaries and logs. A `CYPI_PASSPHRASE` environment variable takes precedence
+summaries and logs. A `CYNX_PASSPHRASE` environment variable takes precedence
 over the file.
 
 Keep `.env` mode 600, never commit it, and never store it on a shared drive.

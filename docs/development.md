@@ -17,7 +17,7 @@
 
 ## Set up
 
-cynx supports Python 3.13 and newer. The Pi deployment uses 3.13.
+CyNX supports Python 3.13 and newer. The Pi deployment uses 3.13.
 
 ```bash
 python3 -m venv env

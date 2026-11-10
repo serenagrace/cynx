@@ -1,4 +1,4 @@
-# cynx documentation
+# CyNX documentation
 
 | Guide | Covers |
 | --- | --- |
@@ -8,6 +8,6 @@
 | [Operations](operations.md) | Day-to-day control, recovery, restart and reboot, troubleshooting and limitations |
 | [Development](development.md) | Layout, tests, formatting, CI, packaging and versioning |
 
-cynx is the wired USB backend for
+CyNX is the wired USB backend for
 [Cynthia](https://github.com/serenagrace/cynthia). Return to the
 [project README](../README.md).

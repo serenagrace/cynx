@@ -62,11 +62,11 @@ class Config:
 
 
 def passphrase(path=".env"):
-    """Read CYPI_PASSPHRASE from the environment or the local dotenv.
+    """Read CYNX_PASSPHRASE from the environment or the local dotenv.
 
     Interpolation is disabled so a secret is never expanded or logged.
     """
     return os.environ.get(
-        "CYPI_PASSPHRASE",
-        dotenv_values(path, interpolate=False).get("CYPI_PASSPHRASE") or "",
+        "CYNX_PASSPHRASE",
+        dotenv_values(path, interpolate=False).get("CYNX_PASSPHRASE") or "",
     )

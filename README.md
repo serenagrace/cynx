@@ -1,4 +1,4 @@
-# cynx
+# CyNX
 
 [![Tests](https://github.com/serenagrace/cynx/actions/workflows/tests.yml/badge.svg)](https://github.com/serenagrace/cynx/actions/workflows/tests.yml)
 [![Python 3.13+](https://img.shields.io/badge/python-3.13%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/downloads/)
@@ -6,10 +6,10 @@
 
 **Exclusive LAN-controlled wired Nintendo Switch controller for Raspberry Pi**
 
-cynx turns a Raspberry Pi with a USB device-mode port into a wired
+CyNX turns a Raspberry Pi with a USB device-mode port into a wired
 HORIPAD-compatible controller. [Cynthia](https://github.com/serenagrace/cynthia)
 discovers the Pi on the local network, claims an authenticated session, and
-sends one controller step at a time. cynx owns the USB timing, stops input on
+sends one controller step at a time. CyNX owns the USB timing, stops input on
 request, and safely detaches when the client goes away.
 
 ## What it does
@@ -33,7 +33,7 @@ sleep are not supported.
 
 ## Quick start
 
-cynx needs a Raspberry Pi with a USB device-mode port (tested on a Pi 4B),
+CyNX needs a Raspberry Pi with a USB device-mode port (tested on a Pi 4B),
 64-bit Raspberry Pi OS with systemd, and Python 3.13 or newer. Enable USB
 device mode by adding `dtoverlay=dwc2,dr_mode=peripheral` to the `[all]` section
 of `/boot/firmware/config.txt`, then reboot.
@@ -44,7 +44,7 @@ cd ~/src/cynx
 python3 -m venv env
 env/bin/python -m pip install -e .
 cp config.example.yaml config.yaml
-cp .env.example .env && chmod 600 .env   # optional CYPI_PASSPHRASE
+cp .env.example .env && chmod 600 .env   # optional CYNX_PASSPHRASE
 sudo bin/install_service.sh              # installs, does not start
 sudo systemctl enable --now cynx
 ```
@@ -79,5 +79,5 @@ The package version is declared in `pyproject.toml` and reported by
 
 ## License
 
-cynx does not currently have a license. No permission to use, copy, modify or
+CyNX does not currently have a license. No permission to use, copy, modify or
 distribute it is granted beyond what applicable law allows.
