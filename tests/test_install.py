@@ -5,13 +5,29 @@ import os
 import subprocess
 from pathlib import Path
 
-from cynx.config import Config
+import pytest
+
+from cynx.config import Config, passphrase
 
 ROOT = Path(__file__).resolve().parent.parent
 
 
 def test_example_config_loads_to_service_defaults():
     assert Config.load(ROOT / "config.example.yaml") == Config()
+
+
+@pytest.mark.parametrize("override", [None, "", "process-value"])
+def test_passphrase_uses_named_dotenv_setting_and_environment_precedence(
+    tmp_path, monkeypatch, override
+):
+    dotenv = tmp_path / ".env"
+    dotenv.write_text("CYNX_PASSPHRASE=literal-${UNEXPANDED}\n")
+    monkeypatch.delenv("CYNX_PASSPHRASE", raising=False)
+    if override is not None:
+        monkeypatch.setenv("CYNX_PASSPHRASE", override)
+    assert passphrase(dotenv) == (
+        "literal-${UNEXPANDED}" if override is None else override
+    )
 
 
 def test_unit_renders_for_unprivileged_account_and_checkout():

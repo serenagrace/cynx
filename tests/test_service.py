@@ -213,7 +213,7 @@ def test_startup_auth_and_exclusive_channels():
             result = await command.call("connect")
             assert result["result"]["spoofing"]
             state = (await command.call("status"))["result"]
-            assert state["identity"] == "cypi" and state["protocol"] == 1
+            assert state["identity"] == "cynx" and state["protocol"] == 1
             assert state["connection_state"] == "connected"
             assert state["boot_id"] == server.boot_id
             assert state["last_completed_id"] == 0
@@ -547,7 +547,7 @@ def test_discovery_unicast_offer_does_not_claim_or_spoof():
                 offer = await asyncio.wait_for(future, 1)
                 assert offer == {
                     "type": "cynx_offer",
-                    "identity": "cypi",
+                    "identity": "cynx",
                     "protocol": 1,
                     "nonce": "abc",
                     "command_port": server.command_port,

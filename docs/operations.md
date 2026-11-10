@@ -114,4 +114,4 @@ deciding whether to resend. Never run a second HID writer, such as
 - Sessions, tombstones and the error history are in memory and reset on
   restart.
 - Backend selection, such as falling back to Bluetooth, is decided by Cynthia,
-  not by cynx.
+  not by CyNX.

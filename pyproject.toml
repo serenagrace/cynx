@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cynx"
-version = "1.0.0"
+version = "1.0.1"
 description = "Exclusive LAN-controlled wired Nintendo Switch controller service for Raspberry Pi"
 readme = "README.md"
 authors = [{name = "serenagrace"}]

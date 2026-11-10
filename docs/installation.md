@@ -51,7 +51,7 @@ cp .env.example .env
 chmod 600 .env
 ```
 
-Set `CYPI_PASSPHRASE` in `.env` if Cynthia uses one; see
+Set `CYNX_PASSPHRASE` in `.env` if Cynthia uses one; see
 [configuration](configuration.md). Never copy tokens or secrets from a shared
 drive.
 

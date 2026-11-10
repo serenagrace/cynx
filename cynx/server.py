@@ -144,7 +144,7 @@ class Server:
                 self.spawn(self.close())
 
     def identity(self):
-        return {"identity": "cypi", "protocol": 1}
+        return {"identity": "cynx", "protocol": 1}
 
     def status(self):
         owner = self.owner

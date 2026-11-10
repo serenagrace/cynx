@@ -1,6 +1,12 @@
 # Protocol (version 1)
 
-cynx has three listeners, all bound to `listen_host`:
+Discovery and handshake responses identify this service as `cynx`. Upgrade
+Cynthia and CyNX together; both endpoints must use this identity and read
+`CYNX_PASSPHRASE` from their working-directory dotenv files. No legacy aliases
+remain. Preserve existing passphrase values and ports. Roll back both endpoints
+and their configuration names together if restoring an earlier release.
+
+CyNX has three listeners, all bound to `listen_host`:
 
 | Channel | Transport | Default port |
 | --- | --- | --- |
@@ -32,10 +38,10 @@ Broadcast to the command port:
 {"type": "cynx_discover", "protocol": 1, "nonce": "random"}
 ```
 
-cynx replies by unicast to the sender:
+CyNX replies by unicast to the sender:
 
 ```json
-{"type": "cynx_offer", "identity": "cypi", "protocol": 1, "nonce": "random", "command_port": 3140, "macro_port": 3141}
+{"type": "cynx_offer", "identity": "cynx", "protocol": 1, "nonce": "random", "command_port": 3140, "macro_port": 3141}
 ```
 
 Discovery never claims, authenticates or binds anything. While a session is
@@ -49,7 +55,7 @@ The first command frame must be `hello`:
 {"id": 1, "command": "hello", "protocol": 1, "passphrase": "", "session": null}
 ```
 
-A successful result contains `identity: "cypi"`, `protocol: 1`, an opaque
+A successful result contains `identity: "cynx"`, `protocol: 1`, an opaque
 random `session`, a `boot_id` unique to this service run, `command_port`,
 `macro_port`, `reconnect_grace`, `heartbeat_timeout`, `recovery_timeout` and
 every [status](#status) field.
@@ -76,7 +82,7 @@ session.
 
 ### Expired sessions
 
-After a lost session's grace period expires, cynx runs recovery and releases
+After a lost session's grace period expires, CyNX runs recovery and releases
 ownership. For 60 seconds afterwards (up to 16 sessions), resuming that session
 with `hello`, or sending any request on one of its still-open connections,
 returns:
@@ -102,7 +108,7 @@ string.
 | `release` | Intentionally end the session; see [release](#release) |
 
 `disconnect` and `release` accept an optional boolean `skip_cleanup`. When it
-is `true`, cynx still fails the active step with `interrupted`, clears the
+is `true`, CyNX still fails the active step with `interrupted`, clears the
 queue, sends neutral and unbinds USB, but skips the menu cleanup sequence. Send
 it only when the host has just confirmed that the Switch already shows Change
 Grip/Order. Absent or `false` keeps the normal cleanup. Any non-boolean value,
@@ -146,14 +152,14 @@ The first macro frame attaches the channel to the owned session:
 {"id": 0, "command": "attach", "session": "...", "passphrase": ""}
 ```
 
-The reply has the usual `ok`/`result` form, with `identity: "cypi"` and the
+The reply has the usual `ok`/`result` form, with `identity: "cynx"` and the
 `session`. Each following frame submits one input step:
 
 ```json
 {"id": 1, "session": "...", "step": "(0.15,0.15) L R"}
 ```
 
-cynx answers promptly with:
+CyNX answers promptly with:
 
 ```json
 {"id": 1, "session": "...", "ok": true, "event": "accepted"}
@@ -228,7 +234,7 @@ diagonals, 8 neutral), four centered axes (128) and a zero byte.
 
 | Field | Meaning |
 | --- | --- |
-| `identity`, `protocol`, `version` | `cypi`, `1`, package version |
+| `identity`, `protocol`, `version` | `cynx`, `1`, package version |
 | `uptime` | Pi uptime in seconds |
 | `boot_id` | Unique per service run; changes on restart |
 | `session` | Current owner's session, or null |
